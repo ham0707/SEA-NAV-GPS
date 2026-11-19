@@ -1,7 +1,12 @@
 
 package com.seanav.gps
 
+import android.Manifest
 import android.app.Activity
+import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.os.Bundle
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
@@ -14,13 +19,28 @@ import android.widget.Toast
 
 import org.maplibre.android.MapLibre
 import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.annotations.Marker
+import org.maplibre.android.annotations.MarkerOptions
+
+import java.util.Locale
 
 class MainActivity : Activity() {
 
     private lateinit var mapView: MapView
-    private lateinit var root: FrameLayout
+    private lateinit var locationManager: LocationManager
+
+    private var marineMap: MapLibreMap? = null
+    private var shipMarker: Marker? = null
+    private var lastLocation: Location? = null
+
+    private lateinit var coordinateText: TextView
+    private lateinit var speedText: TextView
+    private lateinit var accuracyText: TextView
+    private lateinit var gpsStatus: TextView
 
     private val navy = Color.rgb(7, 20, 34)
     private val panel = Color.rgb(13, 34, 52)
@@ -28,19 +48,18 @@ class MainActivity : Activity() {
     private val white = Color.WHITE
     private val muted = Color.rgb(155, 180, 200)
 
-    private fun dp(value: Int): Int {
-        return (value * resources.displayMetrics.density).toInt()
-    }
+    private val requestCodeGps = 100
+
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
 
     private fun background(
         color: Int,
         radius: Int = 16
-    ): GradientDrawable {
-        return GradientDrawable().apply {
-            setColor(color)
-            cornerRadius = dp(radius).toFloat()
-            setStroke(dp(1), Color.rgb(40, 70, 90))
-        }
+    ) = GradientDrawable().apply {
+        setColor(color)
+        cornerRadius = dp(radius).toFloat()
+        setStroke(dp(1), Color.rgb(40, 70, 90))
     }
 
     private fun text(
@@ -48,14 +67,12 @@ class MainActivity : Activity() {
         size: Float,
         color: Int,
         bold: Boolean = false
-    ): TextView {
-        return TextView(this).apply {
-            text = value
-            textSize = size
-            setTextColor(color)
-            if (bold) {
-                setTypeface(null, android.graphics.Typeface.BOLD)
-            }
+    ) = TextView(this).apply {
+        text = value
+        textSize = size
+        setTextColor(color)
+        if (bold) {
+            setTypeface(null, android.graphics.Typeface.BOLD)
         }
     }
 
@@ -67,17 +84,18 @@ class MainActivity : Activity() {
 
         MapLibre.getInstance(this)
 
-        root = FrameLayout(this)
+        locationManager =
+            getSystemService(LOCATION_SERVICE) as LocationManager
 
-        // MAP VIEW
+        val root = FrameLayout(this)
+
         mapView = MapView(this)
         mapView.onCreate(savedInstanceState)
 
         root.addView(
             mapView,
             FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
+                -1, -1
             )
         )
 
@@ -85,16 +103,12 @@ class MainActivity : Activity() {
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(13), dp(16), dp(13))
+            setPadding(dp(15), dp(12), dp(15), dp(12))
             background = background(navy, 18)
         }
 
-        val logo = TextView(this).apply {
-            text = "S"
-            textSize = 23f
-            setTextColor(white)
+        val logo = text("S", 23f, white, true).apply {
             gravity = Gravity.CENTER
-            setTypeface(null, android.graphics.Typeface.BOLD)
             background = background(blue, 12)
         }
 
@@ -118,42 +132,38 @@ class MainActivity : Activity() {
 
         header.addView(
             titleArea,
-            LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            )
+            LinearLayout.LayoutParams(0, -2, 1f)
         )
 
-        val status = text("● ONLINE", 10f, Color.rgb(80, 220, 150), true)
-        header.addView(status)
+        gpsStatus = text(
+            "GPS MENUNGGU", 10f, muted, true
+        )
 
-        val headerParams = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            gravity = Gravity.TOP
-            setMargins(dp(12), dp(12), dp(12), 0)
-        }
+        header.addView(gpsStatus)
 
-        root.addView(header, headerParams)
+        root.addView(
+            header,
+            FrameLayout.LayoutParams(-1, -2).apply {
+                gravity = Gravity.TOP
+                setMargins(dp(12), dp(12), dp(12), 0)
+            }
+        )
 
-        // BOTTOM DASHBOARD
+        // DASHBOARD
         val dashboard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(12), dp(14), dp(14))
             background = background(navy, 22)
         }
 
-        // CONTROL BUTTONS
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
 
-        val bathymetry = controlButton("◈  BATIMETRI")
-        val offline = controlButton("↓  OFFLINE")
-        val mapMode = controlButton("⌖  PETA")
+        val bathymetry = controlButton("◈ BATIMETRI")
+        val offline = controlButton("↓ OFFLINE")
+        val mapMode = controlButton("⌖ PETA")
 
         controls.addView(
             bathymetry,
@@ -172,37 +182,30 @@ class MainActivity : Activity() {
 
         dashboard.addView(controls)
 
-        // DIVIDER
         val divider = View(this).apply {
             setBackgroundColor(Color.rgb(40, 65, 82))
         }
 
-        val dividerParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            dp(1)
-        ).apply {
-            topMargin = dp(13)
-            bottomMargin = dp(13)
-        }
+        dashboard.addView(
+            divider,
+            LinearLayout.LayoutParams(-1, dp(1)).apply {
+                topMargin = dp(13)
+                bottomMargin = dp(13)
+            }
+        )
 
-        dashboard.addView(divider, dividerParams)
-
-        // GPS INFORMATION
         dashboard.addView(
             text("POSISI KAPAL", 11f, muted, true)
         )
 
-        val coordinates = text(
-            "--° --' --\"     --° --' --\"",
-            19f,
-            white,
-            true
+        coordinateText = text(
+            "Menunggu sinyal GPS...",
+            17f, white, true
         )
 
-        coordinates.setPadding(0, dp(8), 0, dp(13))
-        dashboard.addView(coordinates)
+        coordinateText.setPadding(0, dp(10), 0, dp(14))
+        dashboard.addView(coordinateText)
 
-        // SPEED AND DEPTH
         val information = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
         }
@@ -212,117 +215,120 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams(0, dp(70), 1f)
         )
 
+        speedText = (information.getChildAt(0) as LinearLayout)
+            .getChildAt(1) as TextView
+
         information.addView(
             View(this),
             LinearLayout.LayoutParams(dp(10), 1)
         )
 
         information.addView(
-            infoCard("KEDALAMAN", "-- m"),
+            infoCard("AKURASI GPS", "-- m"),
             LinearLayout.LayoutParams(0, dp(70), 1f)
         )
 
+        accuracyText = (information.getChildAt(2) as LinearLayout)
+            .getChildAt(1) as TextView
+
         dashboard.addView(information)
 
-        val gpsNote = text(
-            "GPS belum diaktifkan  •  Data kedalaman belum tersedia",
-            9f,
-            muted
+        dashboard.addView(
+            text(
+                "KEDALAMAN: BELUM TERSEDIA",
+                9f, muted, true
+            ).apply {
+                setPadding(0, dp(12), 0, 0)
+            }
         )
 
-        gpsNote.setPadding(0, dp(12), 0, 0)
-        dashboard.addView(gpsNote)
-
-        val bottomParams = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            gravity = Gravity.BOTTOM
-            setMargins(dp(12), 0, dp(12), dp(12))
-        }
-
-        root.addView(dashboard, bottomParams)
+        root.addView(
+            dashboard,
+            FrameLayout.LayoutParams(-1, -2).apply {
+                gravity = Gravity.BOTTOM
+                setMargins(dp(12), 0, dp(12), dp(12))
+            }
+        )
 
         // GPS BUTTON
-        val gpsButton = TextView(this).apply {
-            text = "⌖"
-            textSize = 27f
+        val gpsButton = text("⌖", 27f, white, true).apply {
             gravity = Gravity.CENTER
-            setTextColor(white)
             background = background(blue, 18)
             elevation = dp(6).toFloat()
 
             setOnClickListener {
-                Toast.makeText(
-                    this@MainActivity,
-                    "Modul GPS akan diaktifkan pada tahap berikutnya.",
-                    Toast.LENGTH_SHORT
-                ).show()
+                val location = lastLocation
+
+                if (location != null) {
+                    marineMap?.animateCamera(
+                        CameraUpdateFactory.newLatLngZoom(
+                            LatLng(
+                                location.latitude,
+                                location.longitude
+                            ),
+                            13.0
+                        )
+                    )
+                } else {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Menunggu sinyal GPS.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
         }
 
-        val gpsParams = FrameLayout.LayoutParams(
-            dp(52),
-            dp(52)
-        ).apply {
-            gravity = Gravity.END or Gravity.BOTTOM
-            setMargins(0, 0, dp(18), dp(260))
-        }
-
-        root.addView(gpsButton, gpsParams)
+        root.addView(
+            gpsButton,
+            FrameLayout.LayoutParams(dp(52), dp(52)).apply {
+                gravity = Gravity.END or Gravity.BOTTOM
+                setMargins(0, 0, dp(18), dp(270))
+            }
+        )
 
         setContentView(root)
 
-        // LOAD MAP
+        // MAPLIBRE
         mapView.getMapAsync { map ->
+
+            marineMap = map
 
             map.setStyle(
                 "https://demotiles.maplibre.org/style.json"
             ) {
-
                 map.cameraPosition =
                     CameraPosition.Builder()
                         .target(LatLng(-2.5, 118.0))
                         .zoom(4.0)
                         .build()
+
+                lastLocation?.let {
+                    updateMapMarker(it)
+                }
             }
         }
 
-        // BUTTON ACTIONS
         bathymetry.setOnClickListener {
-            Toast.makeText(
-                this,
-                "Modul batimetri belum tersedia.",
-                Toast.LENGTH_SHORT
-            ).show()
+            showMessage("Data batimetri belum dipasang.")
         }
 
         offline.setOnClickListener {
-            Toast.makeText(
-                this,
-                "Modul peta offline belum tersedia.",
-                Toast.LENGTH_SHORT
-            ).show()
+            showMessage("Modul peta offline dalam pengembangan.")
         }
 
         mapMode.setOnClickListener {
-            Toast.makeText(
-                this,
-                "Menampilkan peta navigasi.",
-                Toast.LENGTH_SHORT
-            ).show()
+            showMessage("Mode peta navigasi aktif.")
         }
+
+        checkGpsPermission()
     }
 
-    private fun controlButton(label: String): TextView {
-        return TextView(this).apply {
-            text = label
-            textSize = 10f
+    private fun controlButton(label: String) =
+        text(label, 10f, white, true).apply {
             gravity = Gravity.CENTER
-            setTextColor(white)
             background = background(panel, 12)
         }
-    }
 
     private fun infoCard(
         label: String,
@@ -337,12 +343,183 @@ class MainActivity : Activity() {
         }
 
         card.addView(text(label, 9f, muted, true))
-
-        card.addView(
-            text(value, 18f, white, true)
-        )
+        card.addView(text(value, 18f, white, true))
 
         return card
+    }
+
+    private fun showMessage(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    // PERMISSION GPS
+    private fun checkGpsPermission() {
+
+        if (
+            checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ),
+                requestCodeGps
+            )
+        } else {
+            startGps()
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(
+            requestCode, permissions, grantResults
+        )
+
+        if (requestCode == requestCodeGps) {
+
+            if (
+                checkSelfPermission(
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                startGps()
+            } else {
+                gpsStatus.text = "IZIN GPS DITOLAK"
+                showMessage("Izinkan lokasi presisi untuk GPS.")
+            }
+        }
+    }
+
+    // START GPS SATELLITE
+    private fun startGps() {
+
+        if (
+            checkSelfPermission(
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) return
+
+        try {
+
+            if (!locationManager.isProviderEnabled(
+                    LocationManager.GPS_PROVIDER
+                )
+            ) {
+                gpsStatus.text = "GPS NONAKTIF"
+                showMessage("Aktifkan lokasi GPS HP.")
+                return
+            }
+
+            gpsStatus.text = "MENCARI SATELIT"
+
+            locationManager.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                1000L,
+                1f,
+                gpsListener
+            )
+
+            val last = locationManager.getLastKnownLocation(
+                LocationManager.GPS_PROVIDER
+            )
+
+            last?.let {
+                updateGps(it)
+            }
+
+        } catch (e: SecurityException) {
+            gpsStatus.text = "IZIN GPS DITOLAK"
+        }
+    }
+
+    private val gpsListener = object : LocationListener {
+
+        override fun onLocationChanged(location: Location) {
+            updateGps(location)
+        }
+
+        override fun onProviderEnabled(provider: String) {
+            gpsStatus.text = "GPS AKTIF"
+        }
+
+        override fun onProviderDisabled(provider: String) {
+            gpsStatus.text = "GPS NONAKTIF"
+        }
+    }
+
+    private fun updateGps(location: Location) {
+
+        lastLocation = location
+
+        gpsStatus.text = "● GPS AKTIF"
+
+        coordinateText.text = String.format(
+            Locale.US,
+            "%.6f° , %.6f°",
+            location.latitude,
+            location.longitude
+        )
+
+        if (location.hasSpeed()) {
+
+            val knots = location.speed * 1.943844f
+
+            speedText.text = String.format(
+                Locale.US,
+                "%.1f kn",
+                knots
+            )
+
+        } else {
+            speedText.text = "-- kn"
+        }
+
+        if (location.hasAccuracy()) {
+
+            accuracyText.text = String.format(
+                Locale.US,
+                "%.0f m",
+                location.accuracy
+            )
+        }
+
+        updateMapMarker(location)
+    }
+
+    private fun updateMapMarker(location: Location) {
+
+        val map = marineMap ?: return
+
+        val position = LatLng(
+            location.latitude,
+            location.longitude
+        )
+
+        try {
+
+            if (shipMarker != null) {
+                map.removeMarker(shipMarker!!)
+            }
+
+            shipMarker = map.addMarker(
+                MarkerOptions()
+                    .position(position)
+                    .title("Posisi GPS")
+                    .snippet("Posisi perangkat saat ini")
+            )
+
+        } catch (e: Exception) {
+            // Marker akan dicoba diperbarui pada lokasi berikutnya.
+        }
+    }
+
+    private fun stopGps() {
+        locationManager.removeUpdates(gpsListener)
     }
 
     override fun onStart() {
@@ -353,9 +530,18 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         mapView.onResume()
+
+        if (
+            checkSelfPermission(
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            startGps()
+        }
     }
 
     override fun onPause() {
+        stopGps()
         mapView.onPause()
         super.onPause()
     }
@@ -371,6 +557,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        stopGps()
         mapView.onDestroy()
         super.onDestroy()
     }
