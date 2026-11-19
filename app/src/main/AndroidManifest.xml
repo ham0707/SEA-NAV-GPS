@@ -9,8 +9,7 @@
     <application
         android:allowBackup="true"
         android:label="SEA NAV GPS"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar"
-        android:usesCleartextTraffic="false">
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
         <activity
             android:name=".MainActivity"
@@ -24,4 +23,5 @@
         </activity>
 
     </application>
+
 </manifest>
