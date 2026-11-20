@@ -31,7 +31,14 @@ import java.util.Locale
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.RasterLayer
 import org.maplibre.android.style.sources.RasterSource
-
+val bathySource = RasterSource(
+    "gebco-bathy-source",
+    TileSet(
+        "2.2.0",
+        "https://wms.gebco.net/mapserv?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=GEBCO_Latest_2&STYLES=&FORMAT=image/png&TRANSPARENT=true&SRS=EPSG:3857&WIDTH=256&HEIGHT=256&BBOX={bbox-epsg-3857}"
+    ),
+    256
+)
 class MainActivity : Activity() {
 
     private lateinit var mapView: MapView
