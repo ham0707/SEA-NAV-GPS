@@ -25,10 +25,22 @@ jobs:
         with:
           gradle-version: '8.13'
 
+      - name: Inspect AndroidManifest
+        run: |
+          echo "=== MANIFEST CONTENT ==="
+          nl -ba app/src/main/AndroidManifest.xml
+
+          echo "=== FILE TYPE ==="
+          file app/src/main/AndroidManifest.xml
+
+          echo "=== FIRST 32 BYTES ==="
+          od -An -tx1 -N32 app/src/main/AndroidManifest.xml
+
       - name: Build APK
-        run: gradle assembleDebug
+        run: gradle assembleDebug --stacktrace --info
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: SEA-NAV-GPS-APK
