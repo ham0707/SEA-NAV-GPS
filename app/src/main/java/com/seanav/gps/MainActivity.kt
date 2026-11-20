@@ -40,7 +40,8 @@ class MainActivity : Activity() {
     private var marineMap: MapLibreMap? = null
     private var shipMarker: Marker? = null
     private var lastLocation: Location? = null
-
+private var bathymetryLayer: RasterLayer? = null
+private var bathymetryEnabled = false
     private lateinit var coordinateText: TextView
     private lateinit var speedText: TextView
     private lateinit var accuracyText: TextView
