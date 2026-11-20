@@ -301,7 +301,27 @@ private var bathymetryEnabled = false
 
             map.setStyle(
                 "https://demotiles.maplibre.org/style.json"
-            ) {
+            ) { style ->
+
+    val bathySource = RasterSource(
+        "gebco-bathy-source",
+        "https://wms.gebco.net/mapserv?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=GEBCO_Latest_2&STYLES=&FORMAT=image/png&TRANSPARENT=true&SRS=EPSG:3857&WIDTH=256&HEIGHT=256&BBOX={bbox-epsg-3857}",
+        256
+    )
+
+    style.addSource(bathySource)
+
+    val bathyLayer = RasterLayer(
+        "gebco-bathy-layer",
+        "gebco-bathy-source"
+    ).withProperties(
+        PropertyFactory.rasterOpacity(0.75f),
+        PropertyFactory.visibility("none")
+    )
+
+    style.addLayer(bathyLayer)
+    bathymetryLayer = bathyLayer
+
                 map.cameraPosition =
                     CameraPosition.Builder()
                         .target(LatLng(-2.5, 118.0))
