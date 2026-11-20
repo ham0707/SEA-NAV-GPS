@@ -1,6 +1,6 @@
-
 package com.seanav.gps
 
+import org.maplibre.android.style.sources.TileSet
 import android.Manifest
 import android.app.Activity
 import android.content.pm.PackageManager
@@ -294,47 +294,55 @@ private var bathymetryEnabled = false
 
         setContentView(root)
 
-        // MAPLIBRE
-        mapView.getMapAsync { map ->
+        
+// MAPLIBRE
+mapView.getMapAsync { map ->
 
-            marineMap = map
+    marineMap = map
 
-            map.setStyle(
-    "https://demotiles.maplibre.org/style.json"
-) { style ->
+    map.setStyle(
+        "https://demotiles.maplibre.org/style.json"
+    ) { style ->
 
-    val bathySource = RasterSource(
-        "gebco-bathy-source",
-        "https://wms.gebco.net/mapserv?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=GEBCO_Latest_2&STYLES=&FORMAT=image/png&TRANSPARENT=true&SRS=EPSG:3857&WIDTH=256&HEIGHT=256&BBOX={bbox-epsg-3857}",
-        256
-    )
+        val bathySource = RasterSource(
+            "gebco-bathy-source",
+            TileSet(
+                "2.2.0",
+                "https://wms.gebco.net/mapserv?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=GEBCO_Latest_2&STYLES=&FORMAT=image/png&TRANSPARENT=true&SRS=EPSG:3857&WIDTH=256&HEIGHT=256&BBOX={bbox-epsg-3857}"
+            ),
+            256
+        )
 
-    style.addSource(bathySource)
+        style.addSource(bathySource)
 
-    val bathyLayer = RasterLayer(
-        "gebco-bathy-layer",
-        "gebco-bathy-source"
-    ).withProperties(
-        PropertyFactory.rasterOpacity(0.75f),
-        PropertyFactory.visibility("none")
-    )
+        val bathyLayer = RasterLayer(
+            "gebco-bathy-layer",
+            "gebco-bathy-source"
+        ).withProperties(
+            PropertyFactory.rasterOpacity(0.75f),
+            PropertyFactory.visibility(
+                if (bathymetryEnabled) "visible" else "none"
+            )
+        )
 
-    style.addLayer(bathyLayer)
+        style.addLayer(bathyLayer)
 
-    bathymetryLayer = bathyLayer
+        bathymetryLayer = bathyLayer
 
-    map.cameraPosition =
-        CameraPosition.Builder()
-            .target(LatLng(-2.5, 118.0))
-            .zoom(4.0)
-            .build()
+        map.cameraPosition =
+            CameraPosition.Builder()
+                .target(LatLng(-2.5, 118.0))
+                .zoom(4.0)
+                .build()
 
-    lastLocation?.let {
-        updateMapMarker(it)
+        lastLocation?.let {
+            updateMapMarker(it)
+        }
     }
 }
 
-        bathymetry.setOnClickListener {
+// TOMBOL BATIMETRI
+bathymetry.setOnClickListener {
 
     bathymetryEnabled = !bathymetryEnabled
 
@@ -345,21 +353,26 @@ private var bathymetryEnabled = false
     )
 
     bathymetry.text =
-        if (bathymetryEnabled)
+        if (bathymetryEnabled) {
             "◈ BATIMETRI ON"
-        else
+        } else {
             "◈ BATIMETRI"
+        }
 }
 
-        offline.setOnClickListener {
-            showMessage("Modul peta offline dalam pengembangan.")
-        }
+// TOMBOL OFFLINE
+offline.setOnClickListener {
+    showMessage("Modul peta offline dalam pengembangan.")
+}
 
-        mapMode.setOnClickListener {
-            showMessage("Mode peta navigasi aktif.")
-        }
+// TOMBOL MODE PETA
+mapMode.setOnClickListener {
+    showMessage("Mode peta navigasi aktif.")
+}
 
-        checkGpsPermission()
+// GPS
+checkGpsPermission()
+
     }
 
     private fun controlButton(label: String) =
