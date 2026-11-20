@@ -28,6 +28,10 @@ import org.maplibre.android.annotations.MarkerOptions
 
 import java.util.Locale
 
+import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.RasterLayer
+import org.maplibre.android.style.sources.RasterSource
+
 class MainActivity : Activity() {
 
     private lateinit var mapView: MapView
