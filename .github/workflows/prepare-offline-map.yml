@@ -1,0 +1,25 @@
+name: Prepare SEA NAV Offline Map
+
+on:
+  workflow_dispatch:
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare workspace
+        run: |
+          mkdir -p offline-map
+          echo "SEA NAV GPS" > offline-map/README.txt
+          echo "Target: Laut Jawa dan pesisir utara Pulau Jawa" >> offline-map/README.txt
+          echo "Status: Persiapan sumber data" >> offline-map/README.txt
+
+      - name: Upload preparation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sea-nav-offline-map-preparation
+          path: offline-map/
