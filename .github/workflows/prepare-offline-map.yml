@@ -13,13 +13,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      
       - name: Download Java Shortbread MBTiles
         run: |
-          curl -L --fail --retry 3 \
-            -o java-shortbread.mbtiles \
-            https://download.geofabrik.de/asia/indonesia/java-shortbread-1.0.mbtiles
+          for attempt in 1 2 3 4 5; do
+            echo "Download attempt $attempt"
 
+            if curl -fL \
+              --connect-timeout 30 \
+              --max-time 1800 \
+              -o java-shortbread.mbtiles \
+              https://download.geofabrik.de/asia/indonesia/java-shortbread-1.0.mbtiles; then
+              break
+            fi
+
+            if [ "$attempt" -eq 5 ]; then
+              echo "Download failed after 5 attempts"
+              exit 1
+            fi
+
+            sleep 30
+          done
+
+          test -s java-shortbread.mbtiles
           ls -lh java-shortbread.mbtiles
+
 
       - name: Convert MBTiles to PMTiles
         run: |
