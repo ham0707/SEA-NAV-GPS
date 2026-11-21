@@ -40,6 +40,8 @@ class MainActivity : Activity() {
     private var marineMap: MapLibreMap? = null
     private var shipMarker: Marker? = null
     private var lastLocation: Location? = null
+private val gpsLocationHistory = mutableListOf<Location>()
+private val speedHistory = mutableListOf<Float>()
 private var bathymetryLayer: RasterLayer? = null
 private var bathymetryEnabled = false
     private lateinit var coordinateText: TextView
@@ -503,44 +505,81 @@ checkGpsPermission()
         }
     }
 
-    private fun updateGps(location: Location) {
+   private fun updateGps(location: Location) {
 
-        lastLocation = location
+    // Abaikan pembacaan dengan akurasi terlalu buruk
+    if (location.hasAccuracy() && location.accuracy > 20f) {
+        return
+    }
 
-        gpsStatus.text = "● GPS AKTIF"
+    // Simpan maksimal 5 pembacaan GPS
+    gpsLocationHistory.add(Location(location))
 
-        coordinateText.text = String.format(
+    if (gpsLocationHistory.size > 5) {
+        gpsLocationHistory.removeAt(0)
+    }
+
+    // Filter koordinat menggunakan nilai tengah (median)
+    val latitudes = gpsLocationHistory
+        .map { it.latitude }
+        .sorted()
+
+    val longitudes = gpsLocationHistory
+        .map { it.longitude }
+        .sorted()
+
+    val middle = gpsLocationHistory.size / 2
+
+    val filteredLocation = Location(location).apply {
+        latitude = latitudes[middle]
+        longitude = longitudes[middle]
+    }
+
+    lastLocation = filteredLocation
+
+    gpsStatus.text = "● GPS AKTIF"
+
+    coordinateText.text = String.format(
+        Locale.US,
+        "%.6f° , %.6f°",
+        filteredLocation.latitude,
+        filteredLocation.longitude
+    )
+
+    // Filter kecepatan GPS
+    if (location.hasSpeed()) {
+
+        speedHistory.add(location.speed)
+
+        if (speedHistory.size > 5) {
+            speedHistory.removeAt(0)
+        }
+
+        val sortedSpeeds = speedHistory.sorted()
+        val filteredSpeed = sortedSpeeds[sortedSpeeds.size / 2]
+
+        val knots = filteredSpeed * 1.943844f
+
+        speedText.text = String.format(
             Locale.US,
-            "%.6f° , %.6f°",
-            location.latitude,
-            location.longitude
+            "%.1f kn",
+            knots
         )
 
-        if (location.hasSpeed()) {
-
-            val knots = location.speed * 1.943844f
-
-            speedText.text = String.format(
-                Locale.US,
-                "%.1f kn",
-                knots
-            )
-
-        } else {
-            speedText.text = "-- kn"
-        }
-
-        if (location.hasAccuracy()) {
-
-            accuracyText.text = String.format(
-                Locale.US,
-                "%.0f m",
-                location.accuracy
-            )
-        }
-
-        updateMapMarker(location)
+    } else {
+        speedText.text = "-- kn"
     }
+
+    if (location.hasAccuracy()) {
+        accuracyText.text = String.format(
+            Locale.US,
+            "%.0f m",
+            location.accuracy
+        )
+    }
+
+    updateMapMarker(filteredLocation)
+}
 
     private fun updateMapMarker(location: Location) {
 
