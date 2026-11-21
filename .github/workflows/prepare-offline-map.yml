@@ -13,36 +13,38 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.25.x'
-
-      - name: Install PMTiles
-        run: |
-          go install github.com/protomaps/go-pmtiles@v1.31.2
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-
       - name: Download Java Shortbread MBTiles
         run: |
           curl -L --fail --retry 3 \
             -o java-shortbread.mbtiles \
             https://download.geofabrik.de/asia/indonesia/java-shortbread-1.0.mbtiles
 
+          ls -lh java-shortbread.mbtiles
+
       - name: Convert MBTiles to PMTiles
         run: |
-          pmtiles convert java-shortbread.mbtiles java-shortbread.pmtiles
+          docker run --rm \
+            -v "$PWD:/data" \
+            protomaps/go-pmtiles \
+            convert /data/java-shortbread.mbtiles \
+            /data/java-shortbread.pmtiles
 
       - name: Extract Java Sea region
         run: |
-          pmtiles extract java-shortbread.pmtiles \
-            sea-nav-laut-jawa.pmtiles \
+          docker run --rm \
+            -v "$PWD:/data" \
+            protomaps/go-pmtiles \
+            extract /data/java-shortbread.pmtiles \
+            /data/sea-nav-laut-jawa.pmtiles \
             --bbox=105,-8,115,-3.5
 
       - name: Verify map package
         run: |
-          pmtiles verify sea-nav-laut-jawa.pmtiles
-          pmtiles show sea-nav-laut-jawa.pmtiles
+          docker run --rm \
+            -v "$PWD:/data" \
+            protomaps/go-pmtiles \
+            verify /data/sea-nav-laut-jawa.pmtiles
+
           ls -lh sea-nav-laut-jawa.pmtiles
 
       - name: Upload offline map
