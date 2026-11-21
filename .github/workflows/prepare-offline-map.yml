@@ -1,3 +1,4 @@
+
 name: Prepare SEA NAV Offline Map
 
 on:
@@ -6,20 +7,46 @@ on:
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
 
-      - name: Prepare workspace
+      - name: Install PMTiles
         run: |
-          mkdir -p offline-map
-          echo "SEA NAV GPS" > offline-map/README.txt
-          echo "Target: Laut Jawa dan pesisir utara Pulau Jawa" >> offline-map/README.txt
-          echo "Status: Persiapan sumber data" >> offline-map/README.txt
+          go install github.com/protomaps/go-pmtiles/cmd/pmtiles@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      - name: Upload preparation artifact
+      
+      - name: Download Java Shortbread MBTiles
+        run: |
+          curl -L --fail --retry 3 \
+            -o java-shortbread.mbtiles \
+            https://download.geofabrik.de/asia/indonesia/java-shortbread-1.0.mbtiles
+
+      - name: Convert MBTiles to PMTiles
+        run: |
+          pmtiles convert java-shortbread.mbtiles java-shortbread.pmtiles
+
+      - name: Extract Java Sea region
+        run: |
+          pmtiles extract java-shortbread.pmtiles \
+            sea-nav-laut-jawa.pmtiles \
+            --bbox=105,-8,115,-3.5
+
+      - name: Verify map package
+        run: |
+          pmtiles verify sea-nav-laut-jawa.pmtiles
+          pmtiles show sea-nav-laut-jawa.pmtiles
+          ls -lh sea-nav-laut-jawa.pmtiles
+
+      - name: Upload offline map
         uses: actions/upload-artifact@v4
         with:
-          name: sea-nav-offline-map-preparation
-          path: offline-map/
+          name: SEA-NAV-LAUT-JAWA-PMTILES
+          path: sea-nav-laut-jawa.pmtiles
+          compression-level: 0
+          retention-days: 7
